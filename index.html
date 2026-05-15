@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
@@ -86,13 +87,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
               <div><p class="text-[10px] text-slate-400 mb-1">EXP</p><input type="date" id="expInput" class="w-full px-3 py-2 text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"></div>
             </div>
           </div>
-          <div class="space-y-1.5">
+          <div class="space-y-3">
             <div class="flex justify-between items-center">
               <label class="text-xs font-bold text-slate-500 uppercase">4. สแกน SKU</label>
-              <button onclick="toggleCamera()" id="camBtn" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl border border-blue-200 font-semibold hover:bg-blue-100 transition-colors">📷 เปิดกล้อง</button>
+              <div class="flex gap-1">
+                <button onclick="setCamMode('location')" id="camModeLocBtn" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg font-semibold border hidden">📍 โลเคชั่น</button>
+                <button onclick="setCamMode('product')" id="camModeProdBtn" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg font-semibold border hidden">📦 สินค้า</button>
+                <button onclick="toggleCamera()" id="camBtn" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl border border-blue-200 font-semibold hover:bg-blue-100 transition-colors">📷 เปิดกล้อง</button>
+              </div>
             </div>
             <div id="reader" class="w-full overflow-hidden rounded-xl"></div>
-            <div class="flex gap-2"><input type="text" id="skuInput" placeholder="สแกนสินค้า..." autocomplete="off" autocapitalize="characters" spellcheck="false" class="flex-1 px-3 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 uppercase outline-none text-sm disabled:bg-slate-100" disabled><button id="saveSkuBtn" onclick="processProductManualEntry()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-sm disabled:bg-slate-200 hover:bg-slate-900 min-w-[70px]" disabled>บันทึก</button></div>
+            <!-- Scan result staging area -->
+            <div id="scanStaging" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+              <p class="text-xs font-bold text-emerald-700">✅ สแกนได้: <span id="stagingSku" class="font-mono"></span></p>
+              <div class="flex gap-2 items-center">
+                <label class="text-xs text-slate-500 font-semibold whitespace-nowrap">จำนวน:</label>
+                <input type="number" id="stagingQty" value="1" min="1" class="w-24 px-3 py-2 text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-center">
+                <button onclick="confirmStagedScan()" class="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700">+ เพิ่มสต็อค</button>
+                <button onclick="cancelStagedScan()" class="text-red-400 hover:text-red-600 font-bold text-lg px-1">✕</button>
+              </div>
+            </div>
+            <div class="flex gap-2"><input type="text" id="skuInput" placeholder="สแกน/พิมพ์ SKU แล้วกด Enter..." autocomplete="off" autocapitalize="characters" spellcheck="false" class="flex-1 px-3 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 uppercase outline-none text-sm disabled:bg-slate-100" disabled><button id="saveSkuBtn" onclick="stageManualEntry()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-sm disabled:bg-slate-200 hover:bg-slate-900 min-w-[70px]" disabled>ถัดไป</button></div>
           </div>
         </div>
         <div class="bg-white rounded-2xl shadow-sm border p-4 space-y-2">
@@ -129,6 +144,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
           <div class="flex justify-between items-center"><h3 class="text-xs font-bold text-red-600 uppercase">⚠️ ใกล้หมดอายุ (30 วัน)</h3><span id="expiryCount" class="text-[10px] text-red-500 font-bold bg-red-100 px-2 py-0.5 rounded-full"></span></div>
           <div class="overflow-x-auto max-h-48"><table class="w-full text-xs border-collapse"><thead class="bg-red-100 text-red-700 border-b uppercase"><tr><th class="p-2">SKU</th><th class="p-2">โลเคชั่น</th><th class="p-2 text-right">จำนวน</th><th class="p-2">EXP</th><th class="p-2">เหลือ</th></tr></thead><tbody id="expiryWarningBody" class="divide-y"></tbody></table></div>
         </div>
+        <!-- Stock Trend Chart -->
+        <div class="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-bold text-slate-500 uppercase">📈 แนวโน้มสต็อครายวัน</h3>
+            <div class="flex gap-1">
+              <input type="text" id="trendSkuInput" placeholder="กรอก SKU..." autocomplete="off" autocapitalize="characters"
+                     class="text-xs border rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-purple-400 w-32 uppercase">
+              <button onclick="loadStockTrend()" class="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-purple-700">ดู</button>
+            </div>
+          </div>
+          <div id="trendChartContainer" class="hidden">
+            <canvas id="trendChart" height="120"></canvas>
+          </div>
+          <div id="trendTableContainer" class="hidden overflow-x-auto max-h-52">
+            <table class="w-full text-xs border-collapse">
+              <thead class="bg-slate-50 border-b text-slate-500 uppercase sticky top-0">
+                <tr><th class="p-2 text-left">วันที่</th><th class="p-2 text-right">สต็อค</th><th class="p-2 text-right">เปลี่ยน</th><th class="p-2">ประเภท</th><th class="p-2">โลเคชั่น</th></tr>
+              </thead>
+              <tbody id="trendTableBody" class="divide-y"></tbody>
+            </table>
+          </div>
+          <p id="trendEmpty" class="text-xs text-slate-400 text-center py-4">กรอก SKU แล้วกด "ดู" เพื่อดูประวัติ</p>
+        </div>
+
         <div class="space-y-2"><h3 class="text-xs font-bold text-slate-500 uppercase px-1">📍 โลเคชั่นทั้งหมด</h3><div id="locationList" class="space-y-2"><p class="text-xs text-slate-400 text-center py-8 bg-white rounded-2xl border border-dashed">กำลังโหลด...</p></div></div>
       </section>
 
@@ -149,14 +188,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
       <!-- SYNC -->
       <section id="page-sync" class="hidden max-w-3xl mx-auto space-y-4">
         <div class="bg-white rounded-2xl shadow-sm border p-5 space-y-4">
-          <h2 class="font-bold text-slate-800">📤 ตัดยอดประจำวัน (Morning Sync)</h2>
+          <h2 class="font-bold text-slate-800">📤 อัปเดตสต็อคประจำวัน (Morning Sync)</h2>
           <label class="block bg-emerald-50 border-2 border-dashed border-emerald-300 rounded-2xl p-6 text-center cursor-pointer hover:bg-emerald-100 space-y-2">
-            <p class="text-sm font-bold text-emerald-800">วางไฟล์ยอดขาย (.xlsx, .csv)</p>
+            <p class="text-sm font-bold text-emerald-800">วางไฟล์สต็อคปัจจุบัน (.xlsx, .csv)</p>
             <input type="file" id="syncFileInput" accept=".csv,.xlsx,.xls" class="block text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white mx-auto">
-            <p class="text-[11px] text-slate-400">รองรับ: SKU, Barcode, รหัสสินค้า, DeductQty, จำนวน</p>
+            <p class="text-[11px] text-slate-400">รองรับ: SKU, Barcode, รหัสสินค้า, DeductQty, จำนวน, Qty</p>
           </label>
-          <div class="overflow-x-auto max-h-80 border rounded-xl"><table class="w-full text-xs border-collapse"><thead class="bg-slate-50 border-b uppercase sticky top-0"><tr><th class="p-2.5 text-left">SKU</th><th class="p-2.5 text-right">หัก</th><th class="p-2.5 text-right">Front</th><th class="p-2.5 text-right">Back</th><th class="p-2.5">สถานะ</th></tr></thead><tbody id="syncTableBody" class="divide-y"><tr><td colspan="5" class="p-8 text-center text-slate-400">อัปโหลดไฟล์เพื่อประมวลผล</td></tr></tbody></table></div>
-          <div class="flex justify-between items-center"><span id="syncSummaryCount" class="text-xs text-slate-400"></span><button id="confirmSyncBtn" onclick="processSyncDeduction()" disabled class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:bg-slate-200 disabled:text-slate-400 hover:bg-emerald-700">✨ ยืนยันตัดยอด</button></div>
+          <div class="overflow-x-auto max-h-80 border rounded-xl"><table class="w-full text-xs border-collapse"><thead class="bg-slate-50 border-b uppercase sticky top-0"><tr><th class="p-2.5 text-left">SKU</th><th class="p-2.5 text-right">สต็อคใหม่</th><th class="p-2.5 text-right">สต็อคเดิม</th><th class="p-2.5 text-right">ผลต่าง</th><th class="p-2.5">สถานะ</th></tr></thead><tbody id="syncTableBody" class="divide-y"><tr><td colspan="5" class="p-8 text-center text-slate-400">อัปโหลดไฟล์เพื่อประมวลผล</td></tr></tbody></table></div>
+          <div class="flex justify-between items-center"><span id="syncSummaryCount" class="text-xs text-slate-400"></span><button id="confirmSyncBtn" onclick="processSyncDeduction()" disabled class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:bg-slate-200 disabled:text-slate-400 hover:bg-emerald-700">✨ ยืนยันอัปเดตสต็อค</button></div>
         </div>
       </section>
 
@@ -262,7 +301,7 @@ const SUPA_KEY='sb_publishable_dEcZPgB7LeKw0somj4hxtg_mojBipec';
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 let currentUser=null;
 const ROLE_TABS={admin:['putaway','pick','report','logs','sync','master','sku','users'],manager:['putaway','pick','report','logs','sync'],staff:['putaway','pick','report']};
-const TAB_CONFIG={putaway:{label:'จัดเก็บ',icon:'📥',mobile:true},pick:{label:'เบิกสินค้า',icon:'🛒',mobile:true},report:{label:'รายงาน',icon:'📊',mobile:true},logs:{label:'ประวัติ',icon:'📋',mobile:true},sync:{label:'ตัดยอด',icon:'📤',mobile:false},master:{label:'นำเข้า ERP',icon:'⬆️',mobile:false},sku:{label:'จัดการ SKU',icon:'⚙️',mobile:false},users:{label:'ผู้ใช้งาน',icon:'👥',mobile:false}};
+const TAB_CONFIG={putaway:{label:'จัดเก็บ',icon:'📥',mobile:true},pick:{label:'เบิกสินค้า',icon:'🛒',mobile:true},report:{label:'รายงาน',icon:'📊',mobile:true},logs:{label:'ประวัติ',icon:'📋',mobile:true},sync:{label:'อัปเดตสต็อค',icon:'📤',mobile:false},master:{label:'นำเข้า ERP',icon:'⬆️',mobile:false},sku:{label:'จัดการ SKU',icon:'⚙️',mobile:false},users:{label:'ผู้ใช้งาน',icon:'👥',mobile:false}};
 
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 
@@ -279,8 +318,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(lp)lp.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   ['locationInput','skuInput'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el)el.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();id==='locationInput'?setLocation():processProductManualEntry();});
+    if(el)el.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();id==='locationInput'?setLocation():stageManualEntry();});
   });
+  const trendInput = document.getElementById('trendSkuInput');
+  if(trendInput) trendInput.addEventListener('keydown', e => { if(e.key==='Enter') loadStockTrend(); });
+
   ['pickSkuInput','pickingLocInput','receiveLocInput'].forEach(id=>{
     const el=document.getElementById(id);
     if(el)el.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();if(id==='pickSkuInput')addPickItem();else if(id==='pickingLocInput')setPickingLocation();else confirmReceive();});
@@ -605,27 +647,51 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 function parseSyncFile(data,isCsv){try{const rows=parseSpreadsheet(data,isCsv,['SKU','CODE','BARCODE','รหัส'],['DEDUCT','QTY','QUANTITY','จำนวน','ขาย','ยอด','ตัด']);if(!rows)return;const valid=rows.filter(r=>r.sku&&!isNaN(r.qty)&&r.qty>0);if(!valid.length){showToast('ไม่พบรายการที่ถูกต้อง','warn');return;}validateSyncWithDb(valid.map(r=>({sku:r.sku,deductQty:r.qty})));}catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}}
 async function validateSyncWithDb(items){
-  const tb=document.getElementById('syncTableBody');tb.innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-emerald-600 animate-pulse">⏳ ดึงข้อมูล...</td></tr>';parsedSyncData=[];
+  const tb=document.getElementById('syncTableBody');
+  tb.innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-emerald-600 animate-pulse">⏳ ดึงข้อมูลสต็อคเดิม...</td></tr>';
+  parsedSyncData=[];
   const skuSet=new Set(items.map(i=>i.sku));let all=[],from=0;
-  while(true){const{data,error}=await sb.from('stock_locations').select('sku,location_code,quantity,locations!inner(area_type)').range(from,from+999);if(error){tb.innerHTML='';showToast('ดึงข้อมูลล้มเหลว','error');return;}if(!data||!data.length)break;all=all.concat(data);if(data.length<1000)break;from+=1000;}
-  const dbRec=all.filter(r=>skuSet.has(r.sku));tb.innerHTML='';let hasReady=false;
+  while(true){const{data,error}=await sb.from('stock_locations').select('sku,location_code,quantity').range(from,from+999);if(error){tb.innerHTML='';showToast('ดึงข้อมูลล้มเหลว','error');return;}if(!data||!data.length)break;all=all.concat(data);if(data.length<1000)break;from+=1000;}
+  const dbRec=all.filter(r=>skuSet.has(r.sku));
+  tb.innerHTML='';let hasReady=false;
   items.forEach(it=>{
-    const st=dbRec.filter(s=>s.sku===it.sku);
-    const front=st.filter(s=>s.locations.area_type==='Front Area').sort((a,b)=>a.location_code.localeCompare(b.location_code));
-    const back=st.filter(s=>s.locations.area_type==='Back Area').sort((a,b)=>a.location_code.localeCompare(b.location_code));
-    const tf=front.reduce((s,x)=>s+x.quantity,0),tb2=back.reduce((s,x)=>s+x.quantity,0),total=tf+tb2;
-    let badge='';
-    if(total<it.deductQty)badge=`<span class="bg-red-50 text-red-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🔴 ขาด ${it.deductQty-total}</span>`;
-    else{hasReady=true;parsedSyncData.push({sku:it.sku,deductQty:it.deductQty,availableLocs:[...front,...back]});badge=tf<it.deductQty?`<span class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[10px]">🟡 ต้องดึง Back</span>`:`<span class="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px]">🟢 ตัด Front</span>`;}
-    tb.innerHTML+=`<tr class="hover:bg-slate-50"><td class="p-2.5 font-mono font-bold text-xs">${escapeHtml(it.sku)}</td><td class="p-2.5 text-right font-bold text-amber-600">${it.deductQty}</td><td class="p-2.5 text-right text-emerald-600 font-bold">${tf}</td><td class="p-2.5 text-right text-slate-500">${tb2}</td><td class="p-2.5">${badge}</td></tr>`;
+    const locs=dbRec.filter(s=>s.sku===it.sku);
+    const oldTotal=locs.reduce((s,x)=>s+x.quantity,0);
+    const newTotal=it.deductQty;
+    const diff=newTotal-oldTotal;
+    const dc=diff>0?'text-emerald-600 font-bold':diff<0?'text-red-500 font-bold':'text-slate-400';
+    const dl=diff>0?`+${diff}`:String(diff);
+    const badge=diff===0
+      ?'<span class="bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded text-[10px]">— ไม่เปลี่ยน</span>'
+      :diff>0
+        ?`<span class="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold">🔺 เพิ่ม ${diff}</span>`
+        :`<span class="bg-red-50 text-red-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🔻 ลด ${Math.abs(diff)}</span>`;
+    hasReady=true;
+    parsedSyncData.push({sku:it.sku,newQty:newTotal,oldQty:oldTotal,diff,locs});
+    tb.innerHTML+=`<tr class="hover:bg-slate-50"><td class="p-2.5 font-mono font-bold text-xs">${escapeHtml(it.sku)}</td><td class="p-2.5 text-right font-bold text-blue-600">${newTotal}</td><td class="p-2.5 text-right text-slate-500">${oldTotal}</td><td class="p-2.5 text-right ${dc}">${dl}</td><td class="p-2.5">${badge}</td></tr>`;
   });
-  document.getElementById('syncSummaryCount').textContent=`ตรวจสอบแล้ว ${items.length} รายการ`;document.getElementById('confirmSyncBtn').disabled=!hasReady;
+  document.getElementById('syncSummaryCount').textContent=`ตรวจสอบแล้ว ${items.length} รายการ`;
+  document.getElementById('confirmSyncBtn').disabled=!hasReady;
 }
 async function processSyncDeduction(){
-  const ok=await showConfirm('ยืนยันตัดยอด?','ระบบจะหักจาก Front Area ก่อนเสมอ');if(!ok)return;
-  const btn=document.getElementById('confirmSyncBtn');setButtonLoading(btn,true,'⏳...');let success=0;
-  for(const it of parsedSyncData){let rem=it.deductQty;for(const l of it.availableLocs){if(rem<=0)break;if(l.quantity<=0)continue;const cut=Math.min(l.quantity,rem),nq=l.quantity-cut;const{error}=await sb.from('stock_locations').update({quantity:nq}).eq('sku',it.sku).eq('location_code',l.location_code);if(!error){rem-=cut;await writeStockLog('sync_deduct',it.sku,l.location_code,-cut,l.quantity,nq,'MORNING_SYNC');}}if(rem===0)success++;}
-  showToast(`ตัดสต็อคเสร็จ — ปรับ ${success} รายการ`,'success',4000);document.getElementById('syncFileInput').value='';document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-slate-400">ตัดยอดเสร็จสิ้น</td></tr>';setButtonLoading(btn,false,'✨ ยืนยันตัดยอด');btn.disabled=true;parsedSyncData=[];
+  const ok=await showConfirm('ยืนยันอัปเดตสต็อค?','ระบบจะตั้งค่าสต็อคใหม่ตามไฟล์ที่อัปโหลด และบันทึก log ผลต่าง');
+  if(!ok)return;
+  const btn=document.getElementById('confirmSyncBtn');setButtonLoading(btn,true,'⏳...');
+  let success=0;
+  const docRef='SYNC_'+new Date().toISOString().slice(0,10);
+  for(const it of parsedSyncData){
+    if(!it.locs.length)continue;
+    // ปรับโลเคชั่นแรกให้รับผลต่างทั้งหมด
+    const firstLoc=it.locs[0];
+    const otherTotal=it.locs.slice(1).reduce((s,l)=>s+l.quantity,0);
+    const newFirstQty=Math.max(0,it.newQty-otherTotal);
+    const{error}=await sb.from('stock_locations').update({quantity:newFirstQty}).eq('sku',it.sku).eq('location_code',firstLoc.location_code);
+    if(!error){await writeStockLog('sync_deduct',it.sku,firstLoc.location_code,it.diff,it.oldQty,it.newQty,docRef);success++;}
+  }
+  showToast(`อัปเดตสต็อคเสร็จ — ${success} รายการ`,'success',4000);
+  document.getElementById('syncFileInput').value='';
+  document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-slate-400">อัปเดตสต็อคเสร็จสิ้น</td></tr>';
+  setButtonLoading(btn,false,'✨ ยืนยันอัปเดตสต็อค');btn.disabled=true;parsedSyncData=[];
 }
 
 // MASTER IMPORT
@@ -654,24 +720,55 @@ async function resetPass(id,name){const p=window.prompt(`รีเซ็ต pass
 
 // SPREADSHEET PARSER
 function parseSpreadsheet(data,isCsv,skuKw,secKw){let rows=[];if(isCsv){const lines=data.split('\n').map(l=>l.trim()).filter(l=>l);if(lines.length<2){showToast('ไฟล์ CSV ไม่มีข้อมูล','warn');return null;}const h=splitCsv(lines[0]).map(x=>x.toUpperCase());const si=h.findIndex(x=>skuKw.some(k=>x.includes(k))),xi=h.findIndex(x=>secKw.some(k=>x.includes(k)));if(si===-1||xi===-1){showToast('ค้นหาหัวคอลัมน์ไม่พบ','error');return null;}for(let i=1;i<lines.length;i++){const c=splitCsv(lines[i]);rows.push({sku:(c[si]||'').toUpperCase(),qty:Math.round(parseFloat((c[xi]||'0').replace(/,/g,''))||0),name:(c[xi]||'')});}}else{const wb=XLSX.read(data,{type:'array'}),aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});let hr=-1,si=-1,xi=-1;for(let r=0;r<aoa.length;r++){if(!Array.isArray(aoa[r]))continue;aoa[r].forEach((c,idx)=>{const t=String(c).trim().toUpperCase();if(si===-1&&skuKw.some(k=>t.includes(k)))si=idx;if(xi===-1&&secKw.some(k=>t.includes(k)))xi=idx;});if(si!==-1&&xi!==-1){hr=r;break;}}if(hr===-1){showToast('ค้นหาหัวตารางไม่พบ','error');return null;}for(let r=hr+1;r<aoa.length;r++){if(!aoa[r])continue;const sku=String(aoa[r][si]||'').trim().toUpperCase(),raw=String(aoa[r][xi]||'').trim();rows.push({sku,qty:Math.round(parseFloat(raw.replace(/,/g,''))||0),name:raw});}}return rows;}
-// CAMERA
-let html5QrcodeScanner=null,isCameraScanning=false;
+// CAMERA + SCAN STAGING
+let html5QrcodeScanner=null,isCameraScanning=false,camMode='auto';
+// camMode: 'auto'=ตัดสินเอง, 'location'=สแกนโลเคชั่น, 'product'=สแกนสินค้า
+
+function setCamMode(mode){
+  camMode=mode;
+  ['location','product'].forEach(m=>{
+    const btn=document.getElementById(`camMode${m.charAt(0).toUpperCase()+m.slice(1)}Btn`);
+    if(!btn)return;
+    btn.className=m===mode
+      ?'text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1.5 rounded-lg font-bold border border-emerald-300'
+      :'text-[10px] bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg font-semibold border';
+  });
+}
+
 function toggleCamera(){
   const btn=document.getElementById('camBtn');
+  const modeLocBtn=document.getElementById('camModeLocBtn');
+  const modeProdBtn=document.getElementById('camModeProdBtn');
   if(isCameraScanning){
     if(html5QrcodeScanner)html5QrcodeScanner.clear().catch(()=>{});
     isCameraScanning=false;
     btn.textContent='📷 เปิดกล้อง';
     btn.className='text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl border border-blue-200 font-semibold hover:bg-blue-100 transition-colors';
     document.getElementById('reader').innerHTML='';
+    if(modeLocBtn)modeLocBtn.classList.add('hidden');
+    if(modeProdBtn)modeProdBtn.classList.add('hidden');
   } else {
     if(typeof Html5QrcodeScanner==='undefined'){showToast('กำลังโหลด library กล้อง...','info');return;}
-    html5QrcodeScanner=new Html5QrcodeScanner('reader',{fps:10,qrbox:{width:250,height:150},supportedScanTypes:[0,1]},false);
+    // แสดงปุ่มเลือกโหมด
+    if(modeLocBtn)modeLocBtn.classList.remove('hidden');
+    if(modeProdBtn)modeProdBtn.classList.remove('hidden');
+    setCamMode(currentLocation?'product':'location');
+    html5QrcodeScanner=new Html5QrcodeScanner('reader',{fps:10,qrbox:{width:260,height:160},supportedScanTypes:[0,1],rememberLastUsedCamera:true},false);
     html5QrcodeScanner.render(res=>{
       html5QrcodeScanner.pause();
-      if(!currentLocation){document.getElementById('locationInput').value=res;setLocation();}
-      else{document.getElementById('skuInput').value=res;processProductManualEntry();}
-      setTimeout(()=>{try{html5QrcodeScanner.resume();}catch{}},1500);
+      const mode=camMode;
+      if(mode==='location'||(!currentLocation&&mode==='auto')){
+        // สแกนโลเคชั่น
+        document.getElementById('locationInput').value=res.trim().toUpperCase();
+        setLocation().then(()=>{
+          setCamMode('product');
+          setTimeout(()=>{try{html5QrcodeScanner.resume();}catch{}},1000);
+        });
+      } else {
+        // สแกนสินค้า — ขึ้น staging area ก่อน
+        showScanStaging(res.trim().toUpperCase());
+        setTimeout(()=>{try{html5QrcodeScanner.resume();}catch{}},800);
+      }
     });
     isCameraScanning=true;
     btn.textContent='🔴 ปิดกล้อง';
@@ -679,8 +776,182 @@ function toggleCamera(){
   }
 }
 
+// Staging area: แสดง SKU ที่สแกนได้ให้ user ยืนยันจำนวนก่อน
+function showScanStaging(sku){
+  const staging=document.getElementById('scanStaging');
+  document.getElementById('stagingSku').textContent=sku;
+  document.getElementById('stagingQty').value=1;
+  staging.classList.remove('hidden');
+  document.getElementById('stagingQty').focus();
+  document.getElementById('stagingQty').select();
+}
+function cancelStagedScan(){
+  document.getElementById('scanStaging').classList.add('hidden');
+}
+async function confirmStagedScan(){
+  const sku=document.getElementById('stagingSku').textContent;
+  const qty=parseInt(document.getElementById('stagingQty').value||'1');
+  if(!sku||!qty||qty<=0){showToast('จำนวนไม่ถูกต้อง','warn');return;}
+  document.getElementById('scanStaging').classList.add('hidden');
+  await processProductWithQty(sku,qty);
+}
+
+// Manual entry: กด enter แล้วขึ้น staging
+function stageManualEntry(){
+  const sku=document.getElementById('skuInput').value.trim().toUpperCase();
+  if(!sku)return;
+  document.getElementById('skuInput').value='';
+  showScanStaging(sku);
+}
+
+// ============================================================
+// processProduct แยกเป็น 2 ส่วน: stage และ execute
+// ============================================================
+async function processProductWithQty(sku,qty){
+  if(!currentLocation){showToast('ระบุโลเคชั่นก่อนครับ','warn');return;}
+  if(isSaving)return;isSaving=true;
+  const btn=document.getElementById('saveSkuBtn');setButtonLoading(btn,true,'...');
+  try{
+    await sb.from('products').upsert([{sku,name:`SKU: ${sku}`}],{onConflict:'sku'});
+    const{data:ex}=await sb.from('stock_locations').select('quantity').eq('sku',sku).eq('location_code',currentLocation).maybeSingle();
+    const before=ex?.quantity??0,total=before+qty;
+    const mfd=document.getElementById('mfdInput').value||null,exp=document.getElementById('expInput').value||null;
+    const payload={sku,location_code:currentLocation,quantity:total};if(mfd)payload.mfd_date=mfd;if(exp)payload.exp_date=exp;
+    const{error}=await sb.from('stock_locations').upsert([payload],{onConflict:'sku, location_code'});if(error)throw error;
+    await writeStockLog('putaway',sku,currentLocation,qty,before,total);
+    const skuEl=document.getElementById('skuInput');skuEl.classList.add('scan-flash');skuEl.addEventListener('animationend',()=>skuEl.classList.remove('scan-flash'),{once:true});
+    await loadItemsInLocation();showToast(`บันทึก ${sku} ×${qty} แล้ว`,'success',1800);
+  }catch(err){showToast('ล้มเหลว: '+err.message,'error');}
+  finally{setButtonLoading(btn,false,'ถัดไป');isSaving=false;}
+}
+
 function splitCsv(line){const res=[];let cur='',inQ=false;for(const ch of line){if(ch==='"'){inQ=!inQ;continue;}if(ch===','&&!inQ){res.push(cur.trim());cur='';continue;}cur+=ch;}res.push(cur.trim());return res;}
 
+
+// ============================================================
+// STOCK TREND CHART
+// ============================================================
+let trendChartInstance = null;
+
+async function loadStockTrend() {
+  const sku = document.getElementById('trendSkuInput').value.trim().toUpperCase();
+  if (!sku) { showToast('กรอก SKU ก่อนครับ', 'warn'); return; }
+
+  document.getElementById('trendEmpty').textContent = '⏳ กำลังดึงข้อมูล...';
+  document.getElementById('trendChartContainer').classList.add('hidden');
+  document.getElementById('trendTableContainer').classList.add('hidden');
+
+  try {
+    // ดึง stock_logs ของ SKU นี้ย้อนหลัง 30 วัน
+    const since = new Date(); since.setDate(since.getDate() - 30);
+    const { data, error } = await sb.from('stock_logs')
+      .select('*')
+      .eq('sku', sku)
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    if (!data || !data.length) {
+      document.getElementById('trendEmpty').textContent = `ไม่พบประวัติสต็อคของ ${sku} ใน 30 วันที่ผ่านมา`;
+      return;
+    }
+
+    document.getElementById('trendEmpty').classList.add('hidden');
+
+    // Group by date — ใช้ qty_after ล่าสุดของแต่ละวัน
+    const byDate = {};
+    data.forEach(r => {
+      const d = r.created_at.slice(0, 10);
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(r);
+    });
+
+    const dates = Object.keys(byDate).sort();
+    const qtys  = dates.map(d => {
+      const rows = byDate[d];
+      return rows[rows.length - 1].qty_after ?? 0;
+    });
+    const diffs = dates.map((d, i) => {
+      const rows = byDate[d];
+      return rows.reduce((s, r) => s + r.qty_change, 0);
+    });
+
+    // Render chart
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChartInstance) trendChartInstance.destroy();
+    trendChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: dates.map(d => d.slice(5)), // MM-DD
+        datasets: [
+          {
+            label: 'สต็อค (หลังปรับ)',
+            data: qtys,
+            backgroundColor: 'rgba(5,150,105,0.15)',
+            borderColor: '#059669',
+            borderWidth: 2,
+            type: 'line',
+            tension: 0.3,
+            fill: true,
+            yAxisID: 'y',
+            order: 1,
+          },
+          {
+            label: 'เปลี่ยนแปลง',
+            data: diffs,
+            backgroundColor: diffs.map(v => v >= 0 ? 'rgba(5,150,105,0.7)' : 'rgba(220,38,38,0.7)'),
+            borderRadius: 4,
+            yAxisID: 'y2',
+            order: 2,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { font: { size: 10 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const v = ctx.parsed.y;
+                return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y:  { position: 'left',  title: { display: true, text: 'สต็อค', font:{size:9} }, ticks:{font:{size:9}} },
+          y2: { position: 'right', title: { display: true, text: 'เปลี่ยน', font:{size:9} }, ticks:{font:{size:9}}, grid:{drawOnChartArea:false} },
+          x:  { ticks: { font:{size:9} } }
+        }
+      }
+    });
+    document.getElementById('trendChartContainer').classList.remove('hidden');
+
+    // Render detail table
+    const tb = document.getElementById('trendTableBody');
+    const tl = { putaway:'📥 จัดเก็บ', sync_deduct:'📤 Sync', pick_out:'🛒 เบิกออก', pick_in:'📦 รับเข้า' };
+    tb.innerHTML = [...data].reverse().map(r => {
+      const dt = new Date(r.created_at);
+      const ds = `${dt.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit'})} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}`;
+      const cc = r.qty_change > 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+      return `<tr class="hover:bg-slate-50">
+        <td class="p-2 text-slate-500 whitespace-nowrap">${ds}</td>
+        <td class="p-2 text-right font-bold text-slate-800">${r.qty_after ?? '-'}</td>
+        <td class="p-2 text-right ${cc}">${r.qty_change > 0 ? '+' : ''}${r.qty_change}</td>
+        <td class="p-2 text-slate-600">${tl[r.action_type] || r.action_type}</td>
+        <td class="p-2 text-slate-400 font-mono text-[10px]">${escapeHtml(r.location_code || '-')}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('trendTableContainer').classList.remove('hidden');
+    document.getElementById('trendEmpty').classList.add('hidden');
+
+  } catch(err) {
+    document.getElementById('trendEmpty').textContent = '❌ ' + err.message;
+    document.getElementById('trendEmpty').classList.remove('hidden');
+  }
+}
 </script>
 </body>
 </html>
