@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
@@ -86,7 +87,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
             </div>
           </div>
           <div class="space-y-1.5">
-            <label class="text-xs font-bold text-slate-500 uppercase">4. สแกน SKU</label>
+            <div class="flex justify-between items-center">
+              <label class="text-xs font-bold text-slate-500 uppercase">4. สแกน SKU</label>
+              <button onclick="toggleCamera()" id="camBtn" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl border border-blue-200 font-semibold hover:bg-blue-100 transition-colors">📷 เปิดกล้อง</button>
+            </div>
+            <div id="reader" class="w-full overflow-hidden rounded-xl"></div>
             <div class="flex gap-2"><input type="text" id="skuInput" placeholder="สแกนสินค้า..." autocomplete="off" autocapitalize="characters" spellcheck="false" class="flex-1 px-3 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 uppercase outline-none text-sm disabled:bg-slate-100" disabled><button id="saveSkuBtn" onclick="processProductManualEntry()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-sm disabled:bg-slate-200 hover:bg-slate-900 min-w-[70px]" disabled>บันทึก</button></div>
           </div>
         </div>
@@ -595,8 +600,8 @@ async function loadLogs(){
 // SYNC
 let parsedSyncData=[];
 document.addEventListener('DOMContentLoaded',()=>{
-  const sf=document.getElementById('syncFileInput');if(sf)sf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-amber-600">⏳...</td></tr>';document.getElementById('confirmSyncBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>parseSyncFile(ev.target.result,true);r.readAsText(f,'UTF-8');}else{r.onload=ev=>parseSyncFile(new Uint8Array(ev.target.result),false);r.readAsArrayBuffer(f);}});
-  const mf=document.getElementById('masterFileInput');if(mf)mf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('masterTableBody').innerHTML='<tr><td colspan="2" class="p-8 text-center text-xs text-blue-600">⏳...</td></tr>';document.getElementById('confirmMasterBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>parseMasterData(ev.target.result,true);r.readAsText(f,'UTF-8');}else{r.onload=ev=>parseMasterData(new Uint8Array(ev.target.result),false);r.readAsArrayBuffer(f);}});
+  const sf=document.getElementById('syncFileInput');if(sf)sf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-amber-600">⏳...</td></tr>';document.getElementById('confirmSyncBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>{const d=ev.target.result;setTimeout(()=>parseSyncFile(d,true),10);};r.readAsText(f,'UTF-8');}else{r.onload=ev=>{const d=new Uint8Array(ev.target.result);setTimeout(()=>parseSyncFile(d,false),10);};r.readAsArrayBuffer(f);}});
+  const mf=document.getElementById('masterFileInput');if(mf)mf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('masterTableBody').innerHTML='<tr><td colspan="2" class="p-8 text-center text-xs text-blue-600">⏳...</td></tr>';document.getElementById('confirmMasterBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>{const d=ev.target.result;setTimeout(()=>parseMasterData(d,true),10);};r.readAsText(f,'UTF-8');}else{r.onload=ev=>{const d=new Uint8Array(ev.target.result);setTimeout(()=>parseMasterData(d,false),10);};r.readAsArrayBuffer(f);}});
 });
 function parseSyncFile(data,isCsv){try{const rows=parseSpreadsheet(data,isCsv,['SKU','CODE','BARCODE','รหัส'],['DEDUCT','QTY','QUANTITY','จำนวน','ขาย','ยอด','ตัด']);if(!rows)return;const valid=rows.filter(r=>r.sku&&!isNaN(r.qty)&&r.qty>0);if(!valid.length){showToast('ไม่พบรายการที่ถูกต้อง','warn');return;}validateSyncWithDb(valid.map(r=>({sku:r.sku,deductQty:r.qty})));}catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}}
 async function validateSyncWithDb(items){
@@ -649,7 +654,33 @@ async function resetPass(id,name){const p=window.prompt(`รีเซ็ต pass
 
 // SPREADSHEET PARSER
 function parseSpreadsheet(data,isCsv,skuKw,secKw){let rows=[];if(isCsv){const lines=data.split('\n').map(l=>l.trim()).filter(l=>l);if(lines.length<2){showToast('ไฟล์ CSV ไม่มีข้อมูล','warn');return null;}const h=splitCsv(lines[0]).map(x=>x.toUpperCase());const si=h.findIndex(x=>skuKw.some(k=>x.includes(k))),xi=h.findIndex(x=>secKw.some(k=>x.includes(k)));if(si===-1||xi===-1){showToast('ค้นหาหัวคอลัมน์ไม่พบ','error');return null;}for(let i=1;i<lines.length;i++){const c=splitCsv(lines[i]);rows.push({sku:(c[si]||'').toUpperCase(),qty:Math.round(parseFloat((c[xi]||'0').replace(/,/g,''))||0),name:(c[xi]||'')});}}else{const wb=XLSX.read(data,{type:'array'}),aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});let hr=-1,si=-1,xi=-1;for(let r=0;r<aoa.length;r++){if(!Array.isArray(aoa[r]))continue;aoa[r].forEach((c,idx)=>{const t=String(c).trim().toUpperCase();if(si===-1&&skuKw.some(k=>t.includes(k)))si=idx;if(xi===-1&&secKw.some(k=>t.includes(k)))xi=idx;});if(si!==-1&&xi!==-1){hr=r;break;}}if(hr===-1){showToast('ค้นหาหัวตารางไม่พบ','error');return null;}for(let r=hr+1;r<aoa.length;r++){if(!aoa[r])continue;const sku=String(aoa[r][si]||'').trim().toUpperCase(),raw=String(aoa[r][xi]||'').trim();rows.push({sku,qty:Math.round(parseFloat(raw.replace(/,/g,''))||0),name:raw});}}return rows;}
+// CAMERA
+let html5QrcodeScanner=null,isCameraScanning=false;
+function toggleCamera(){
+  const btn=document.getElementById('camBtn');
+  if(isCameraScanning){
+    if(html5QrcodeScanner)html5QrcodeScanner.clear().catch(()=>{});
+    isCameraScanning=false;
+    btn.textContent='📷 เปิดกล้อง';
+    btn.className='text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl border border-blue-200 font-semibold hover:bg-blue-100 transition-colors';
+    document.getElementById('reader').innerHTML='';
+  } else {
+    if(typeof Html5QrcodeScanner==='undefined'){showToast('กำลังโหลด library กล้อง...','info');return;}
+    html5QrcodeScanner=new Html5QrcodeScanner('reader',{fps:10,qrbox:{width:250,height:150},supportedScanTypes:[0,1]},false);
+    html5QrcodeScanner.render(res=>{
+      html5QrcodeScanner.pause();
+      if(!currentLocation){document.getElementById('locationInput').value=res;setLocation();}
+      else{document.getElementById('skuInput').value=res;processProductManualEntry();}
+      setTimeout(()=>{try{html5QrcodeScanner.resume();}catch{}},1500);
+    });
+    isCameraScanning=true;
+    btn.textContent='🔴 ปิดกล้อง';
+    btn.className='text-xs bg-red-50 text-red-600 px-3 py-1.5 rounded-xl border border-red-200 font-semibold hover:bg-red-100 transition-colors';
+  }
+}
+
 function splitCsv(line){const res=[];let cur='',inQ=false;for(const ch of line){if(ch==='"'){inQ=!inQ;continue;}if(ch===','&&!inQ){res.push(cur.trim());cur='';continue;}cur+=ch;}res.push(cur.trim());return res;}
+
 </script>
 </body>
 </html>
