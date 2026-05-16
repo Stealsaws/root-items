@@ -194,7 +194,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
             <input type="file" id="syncFileInput" accept=".csv,.xlsx,.xls" class="block text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white mx-auto">
             <p class="text-[11px] text-slate-400">รองรับ: SKU, Barcode, รหัสสินค้า, DeductQty, จำนวน, Qty</p>
           </label>
-          <div class="overflow-x-auto max-h-80 border rounded-xl"><table class="w-full text-xs border-collapse"><thead class="bg-slate-50 border-b uppercase sticky top-0"><tr><th class="p-2.5 text-left">SKU</th><th class="p-2.5 text-right">สต็อคใหม่</th><th class="p-2.5 text-right">สต็อคเดิม</th><th class="p-2.5 text-right">ผลต่าง</th><th class="p-2.5">สถานะ</th></tr></thead><tbody id="syncTableBody" class="divide-y"><tr><td colspan="5" class="p-8 text-center text-slate-400">อัปโหลดไฟล์เพื่อประมวลผล</td></tr></tbody></table></div>
+          <div class="overflow-x-auto max-h-80 border rounded-xl"><table class="w-full text-xs border-collapse"><thead class="bg-slate-50 border-b uppercase sticky top-0"><tr><th class="p-2.5 text-left">SKU / ชื่อสินค้า</th><th class="p-2.5">โลเคชั่น</th><th class="p-2.5 text-right">สต็อคใหม่</th><th class="p-2.5 text-right">สต็อคเดิม</th><th class="p-2.5 text-right">ผลต่าง</th><th class="p-2.5">สถานะ</th></tr></thead><tbody id="syncTableBody" class="divide-y"><tr><td colspan="6" class="p-8 text-center text-slate-400">อัปโหลดไฟล์เพื่อประมวลผล</td></tr></tbody></table></div>
           <div class="flex justify-between items-center"><span id="syncSummaryCount" class="text-xs text-slate-400"></span><button id="confirmSyncBtn" onclick="processSyncDeduction()" disabled class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:bg-slate-200 disabled:text-slate-400 hover:bg-emerald-700">✨ ยืนยันอัปเดตสต็อค</button></div>
         </div>
       </section>
@@ -221,6 +221,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
         </div>
         <div class="bg-white rounded-2xl shadow-sm border overflow-x-auto" style="max-height:500px"><table class="w-full text-xs border-collapse"><thead class="bg-slate-50 text-slate-500 border-b uppercase sticky top-0"><tr><th class="p-2.5 text-left">SKU</th><th class="p-2.5 text-left">ชื่อสินค้า</th><th class="p-2.5 text-right">สต็อครวม</th><th class="p-2.5 text-center w-24">จัดการ</th></tr></thead><tbody id="skuTableBody" class="divide-y"><tr><td colspan="4" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr></tbody></table></div>
         <span id="skuCount" class="text-xs text-slate-400 px-1"></span>
+      </section>
+
+      <!-- CYCLE COUNT -->
+      <section id="page-count" class="hidden max-w-lg mx-auto space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <div>
+              <h2 class="font-bold text-slate-800">🔢 นับสต็อค (Cycle Count)</h2>
+              <p class="text-xs text-slate-400">สแกนของจริงเปรียบเทียบกับระบบ แล้วอนุมัติปรับยอด</p>
+            </div>
+            <button onclick="openNewCountSession()" class="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-emerald-700">+ เปิด Session</button>
+          </div>
+          <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs">
+            <button onclick="filterCountSessions('open')"             id="ctab-open"             class="flex-1 py-2 rounded-lg bg-white text-emerald-700 shadow-sm font-bold">🟢 กำลังนับ</button>
+            <button onclick="filterCountSessions('pending_approval')" id="ctab-pending_approval" class="flex-1 py-2 rounded-lg text-slate-500 font-semibold">⏳ รออนุมัติ</button>
+            <button onclick="filterCountSessions('approved')"         id="ctab-approved"         class="flex-1 py-2 rounded-lg text-slate-500 font-semibold">✅ อนุมัติแล้ว</button>
+          </div>
+        </div>
+        <div id="countSessionList" class="space-y-3">
+          <p class="text-xs text-slate-400 text-center py-8 bg-white rounded-2xl border">กำลังโหลด...</p>
+        </div>
       </section>
 
       <!-- USERS -->
@@ -269,6 +290,114 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
     <div class="flex gap-2 justify-end"><button onclick="closeUserModal()" class="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-600">ยกเลิก</button><button id="userModalSaveBtn" onclick="saveUser()" class="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 min-w-[80px]">บันทึก</button></div>
   </div>
 </div>
+<!-- Modal: New Cycle Count Session -->
+<div id="countSessionModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+    <h3 class="font-bold text-slate-800">🔢 เปิด Session นับสต็อค</h3>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase">โลเคชั่นที่จะนับ *</label>
+        <input type="text" id="countLocInput" placeholder="เช่น FA01, BA02..." autocomplete="off" autocapitalize="characters"
+               class="mt-1 w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 uppercase outline-none text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase">หมายเหตุ</label>
+        <input type="text" id="countNoteInput" placeholder="ระบุหมายเหตุ (ถ้ามี)"
+               class="mt-1 w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+      </div>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button onclick="closeCountModal()" class="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-600">ยกเลิก</button>
+      <button id="countSessionSaveBtn" onclick="saveCountSession()" class="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 min-w-[80px]">เปิด Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Counting (สแกนของจริง) -->
+<div id="countingModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+    <div class="flex justify-between items-center">
+      <div>
+        <h3 class="font-bold text-slate-800">🔢 นับสต็อค</h3>
+        <p id="countingSessionNo" class="text-xs text-slate-400 font-mono"></p>
+      </div>
+      <span id="countingLocBadge" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-bold"></span>
+    </div>
+
+    <!-- สแกน SKU -->
+    <div class="space-y-1.5">
+      <label class="text-xs font-bold text-slate-500 uppercase">สแกน / พิมพ์ SKU ที่นับได้</label>
+      <div class="flex gap-2">
+        <input type="text" id="countSkuInput" placeholder="สแกนบาร์โค้ด..." autocomplete="off" autocapitalize="characters"
+               class="flex-1 px-3 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 uppercase outline-none text-sm">
+        <button onclick="addCountItem()" class="bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700">เพิ่ม</button>
+      </div>
+      <!-- Staging qty -->
+      <div id="countStaging" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+        <p class="text-xs font-bold text-emerald-700">SKU: <span id="countStagingSku" class="font-mono"></span></p>
+        <div class="flex gap-2 items-center">
+          <label class="text-xs text-slate-500 whitespace-nowrap">จำนวนที่นับได้:</label>
+          <input type="number" id="countStagingQty" value="1" min="0"
+                 class="w-24 px-3 py-2 text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-center">
+          <button onclick="confirmCountItem()" class="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700">✓ บันทึก</button>
+          <button onclick="cancelCountStaging()" class="text-red-400 hover:text-red-600 font-bold text-lg px-1">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- รายการที่นับแล้ว -->
+    <div class="space-y-1">
+      <div class="flex justify-between items-center">
+        <label class="text-xs font-bold text-slate-500 uppercase">รายการที่นับแล้ว</label>
+        <span id="countItemCount" class="text-[10px] text-slate-400"></span>
+      </div>
+      <div id="countItemsList" class="space-y-1.5 max-h-64 overflow-y-auto">
+        <p class="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl border border-dashed">ยังไม่มีรายการ</p>
+      </div>
+    </div>
+
+    <div class="flex gap-2 justify-end pt-1">
+      <button onclick="closeCountingModal()" class="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-600">บันทึกแล้วปิด</button>
+      <button id="submitCountBtn" onclick="submitCountForApproval()" class="px-4 py-2 rounded-xl text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 min-w-[120px]">📋 ส่งอนุมัติ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Approve Cycle Count -->
+<div id="approveCountModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+    <div class="flex justify-between items-center">
+      <h3 class="font-bold text-slate-800">✅ อนุมัติการนับสต็อค</h3>
+      <span id="approveSessionNo" class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-mono font-bold"></span>
+    </div>
+    <p class="text-xs text-slate-400">ตรวจสอบผลต่างก่อนอนุมัติ ระบบจะอัปเดตสต็อคตามจำนวนที่นับได้</p>
+
+    <div class="overflow-x-auto max-h-72">
+      <table class="w-full text-xs border-collapse">
+        <thead class="bg-slate-50 border-b text-slate-500 uppercase sticky top-0">
+          <tr>
+            <th class="p-2 text-left">SKU</th>
+            <th class="p-2 text-right">ระบบ</th>
+            <th class="p-2 text-right">นับได้</th>
+            <th class="p-2 text-right">ผลต่าง</th>
+          </tr>
+        </thead>
+        <tbody id="approveCountBody" class="divide-y"></tbody>
+      </table>
+    </div>
+
+    <div class="bg-slate-50 rounded-xl p-3 text-xs space-y-1">
+      <p class="font-bold text-slate-700">สรุป:</p>
+      <p id="approveSummary" class="text-slate-600"></p>
+    </div>
+
+    <div class="flex gap-2 justify-end">
+      <button onclick="closeApproveModal()" class="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-600">ยกเลิก</button>
+      <button id="approveCountBtn" onclick="approveCount()" class="px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 min-w-[100px]">✅ อนุมัติ & ปรับยอด</button>
+    </div>
+  </div>
+</div>
+
 <div id="pickModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
     <h3 class="font-bold text-slate-800">🛒 สร้างใบเบิกสินค้า</h3>
@@ -300,8 +429,8 @@ const SUPA_URL='https://gobvjimphlrftzjdveyi.supabase.co';
 const SUPA_KEY='sb_publishable_dEcZPgB7LeKw0somj4hxtg_mojBipec';
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 let currentUser=null;
-const ROLE_TABS={admin:['putaway','pick','report','logs','sync','master','sku','users'],manager:['putaway','pick','report','logs','sync'],staff:['putaway','pick','report']};
-const TAB_CONFIG={putaway:{label:'จัดเก็บ',icon:'📥',mobile:true},pick:{label:'เบิกสินค้า',icon:'🛒',mobile:true},report:{label:'รายงาน',icon:'📊',mobile:true},logs:{label:'ประวัติ',icon:'📋',mobile:true},sync:{label:'อัปเดตสต็อค',icon:'📤',mobile:false},master:{label:'นำเข้า ERP',icon:'⬆️',mobile:false},sku:{label:'จัดการ SKU',icon:'⚙️',mobile:false},users:{label:'ผู้ใช้งาน',icon:'👥',mobile:false}};
+const ROLE_TABS={admin:['putaway','pick','report','count','logs','sync','master','sku','users'],manager:['putaway','pick','report','count','logs','sync'],staff:['putaway','pick','report','count']};
+const TAB_CONFIG={putaway:{label:'จัดเก็บ',icon:'📥',mobile:true},pick:{label:'เบิกสินค้า',icon:'🛒',mobile:true},report:{label:'รายงาน',icon:'📊',mobile:true},logs:{label:'ประวัติ',icon:'📋',mobile:true},sync:{label:'อัปเดตสต็อค',icon:'📤',mobile:false},count:{label:'นับสต็อค',icon:'🔢',mobile:true},master:{label:'นำเข้า ERP',icon:'⬆️',mobile:false},sku:{label:'จัดการ SKU',icon:'⚙️',mobile:false},users:{label:'ผู้ใช้งาน',icon:'👥',mobile:false}};
 
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 
@@ -382,7 +511,7 @@ function switchTab(id){
   });
   const mob=tabs.filter(t=>TAB_CONFIG[t].mobile).slice(0,4);
   mob.forEach(t=>{const mb=document.getElementById(`mtab-${t}`);if(mb)mb.className=t===id?"flex flex-col items-center gap-0.5 py-1 px-3 text-emerald-600 transition-colors":"flex flex-col items-center gap-0.5 py-1 px-3 text-slate-400 transition-colors";});
-  if(id==='sku')loadSkuManager();if(id==='report')loadReport();if(id==='pick')loadPickOrders();if(id==='logs')loadLogs();if(id==='users')loadUsers();
+  if(id==='sku')loadSkuManager();if(id==='report')loadReport();if(id==='pick')loadPickOrders();if(id==='logs')loadLogs();if(id==='users')loadUsers();if(id==='count')loadCycleSessions();
 }
 
 async function checkConn(){
@@ -645,10 +774,73 @@ document.addEventListener('DOMContentLoaded',()=>{
   const sf=document.getElementById('syncFileInput');if(sf)sf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-amber-600">⏳...</td></tr>';document.getElementById('confirmSyncBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>{const d=ev.target.result;setTimeout(()=>parseSyncFile(d,true),10);};r.readAsText(f,'UTF-8');}else{r.onload=ev=>{const d=new Uint8Array(ev.target.result);setTimeout(()=>parseSyncFile(d,false),10);};r.readAsArrayBuffer(f);}});
   const mf=document.getElementById('masterFileInput');if(mf)mf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;document.getElementById('masterTableBody').innerHTML='<tr><td colspan="2" class="p-8 text-center text-xs text-blue-600">⏳...</td></tr>';document.getElementById('confirmMasterBtn').disabled=true;const r=new FileReader();if(f.name.toLowerCase().endsWith('.csv')){r.onload=ev=>{const d=ev.target.result;setTimeout(()=>parseMasterData(d,true),10);};r.readAsText(f,'UTF-8');}else{r.onload=ev=>{const d=new Uint8Array(ev.target.result);setTimeout(()=>parseMasterData(d,false),10);};r.readAsArrayBuffer(f);}});
 });
-function parseSyncFile(data,isCsv){try{const rows=parseSpreadsheet(data,isCsv,['SKU','CODE','BARCODE','รหัส'],['DEDUCT','QTY','QUANTITY','จำนวน','ขาย','ยอด','ตัด']);if(!rows)return;const valid=rows.filter(r=>r.sku&&!isNaN(r.qty)&&r.qty>0);if(!valid.length){showToast('ไม่พบรายการที่ถูกต้อง','warn');return;}validateSyncWithDb(valid.map(r=>({sku:r.sku,deductQty:r.qty})));}catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}}
+function parseSyncFile(data,isCsv){
+  try{
+    // รองรับทั้ง StockReport format และ format อื่น
+    const rows=parseStockReportFile(data,isCsv);
+    if(!rows||!rows.length){showToast('ไม่พบรายการที่ถูกต้อง','warn');return;}
+    validateSyncWithDb(rows.map(r=>({sku:r.sku,deductQty:r.qty,name:r.name,branch:r.branch,warehouse:r.warehouse,subwarehouse:r.subwarehouse,lotnumber:r.lotnumber,cost:r.cost})));
+  }catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}
+}
+
+// Parser เฉพาะสำหรับ StockReport format
+function parseStockReportFile(data,isCsv){
+  let rows=[];
+  const skuKw=['PRODUCT CODE','BARCODE','SKU','CODE','รหัส'];
+  const qtyKw=['STOCKQTY','QTY','QUANTITY','จำนวน','DEDUCT'];
+  const nameKw=['PRODUCT NAME','ชื่อสินค้า','NAME'];
+  const branchKw=['BRANCH SHORT NAME','BRANCH','สาขา'];
+  const whKw=['WAREHOUSE NAME','WAREHOUSE','โกดัง'];
+  const subwhKw=['SUBWAREHOUSE NAME','SUBWAREHOUSE','โลเคชั่น'];
+  const lotKw=['LOTNUMBER','LOT NUMBER','LOT','BATCH'];
+  const costKw=['PRODUCT COST','COST','ต้นทุน'];
+
+  function findCol(headers,kws){return headers.findIndex(h=>kws.some(k=>h.includes(k)));}
+
+  if(isCsv){
+    const lines=data.split('\n').map(l=>l.trim()).filter(l=>l);
+    if(lines.length<2){showToast('ไฟล์ CSV ไม่มีข้อมูล','warn');return null;}
+    const h=splitCsv(lines[0]).map(x=>x.toUpperCase().trim());
+    const si=findCol(h,skuKw),qi=findCol(h,qtyKw),ni=findCol(h,nameKw);
+    const bi=findCol(h,branchKw),wi=findCol(h,whKw),swi=findCol(h,subwhKw);
+    const li=findCol(h,lotKw),ci=findCol(h,costKw);
+    if(si===-1||qi===-1){showToast('ค้นหาคอลัมน์ Product Code และ Stockqty ไม่พบ','error');return null;}
+    for(let i=1;i<lines.length;i++){
+      const cols=splitCsv(lines[i]);
+      const sku=String(cols[si]||'').trim().toUpperCase();
+      const qty=Math.round(parseFloat(String(cols[qi]||'0').replace(/,/g,''))||0);
+      if(!sku)continue;
+      rows.push({sku,qty,name:ni>=0?String(cols[ni]||'').trim():'',branch:bi>=0?String(cols[bi]||'').trim():'',warehouse:wi>=0?String(cols[wi]||'').trim():'',subwarehouse:swi>=0?String(cols[swi]||'').trim():'',lotnumber:li>=0?String(cols[li]||'').trim():'',cost:ci>=0?parseFloat(String(cols[ci]||'0').replace(/,/g,''))||0:0});
+    }
+  } else {
+    const wb=XLSX.read(data,{type:'array'});
+    const aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+    let hRow=-1,si=-1,qi=-1,ni=-1,bi=-1,wi=-1,swi=-1,li=-1,ci=-1;
+    for(let r=0;r<aoa.length;r++){
+      if(!Array.isArray(aoa[r]))continue;
+      const h=aoa[r].map(x=>String(x).toUpperCase().trim());
+      const tsi=findCol(h,skuKw),tqi=findCol(h,qtyKw);
+      if(tsi!==-1&&tqi!==-1){
+        hRow=r;si=tsi;qi=tqi;
+        ni=findCol(h,nameKw);bi=findCol(h,branchKw);wi=findCol(h,whKw);
+        swi=findCol(h,subwhKw);li=findCol(h,lotKw);ci=findCol(h,costKw);
+        break;
+      }
+    }
+    if(hRow===-1){showToast('ค้นหาหัวตาราง (Product Code + Stockqty) ไม่พบ','error');return null;}
+    for(let r=hRow+1;r<aoa.length;r++){
+      if(!aoa[r])continue;
+      const sku=String(aoa[r][si]||'').trim().toUpperCase();
+      const qty=Math.round(parseFloat(String(aoa[r][qi]||'0').replace(/,/g,''))||0);
+      if(!sku)continue;
+      rows.push({sku,qty,name:ni>=0?String(aoa[r][ni]||'').trim():'',branch:bi>=0?String(aoa[r][bi]||'').trim():'',warehouse:wi>=0?String(aoa[r][wi]||'').trim():'',subwarehouse:swi>=0?String(aoa[r][swi]||'').trim():'',lotnumber:li>=0?String(aoa[r][li]||'').trim():'',cost:ci>=0?parseFloat(String(aoa[r][ci]||'0').replace(/,/g,''))||0:0});
+    }
+  }
+  return rows.filter(r=>r.sku);
+}
 async function validateSyncWithDb(items){
   const tb=document.getElementById('syncTableBody');
-  tb.innerHTML='<tr><td colspan="5" class="p-8 text-center text-xs text-emerald-600 animate-pulse">⏳ ดึงข้อมูลสต็อคเดิม...</td></tr>';
+  tb.innerHTML='<tr><td colspan="6" class="p-8 text-center text-xs text-emerald-600 animate-pulse">⏳ ดึงข้อมูลสต็อคเดิม...</td></tr>';
   parsedSyncData=[];
   const skuSet=new Set(items.map(i=>i.sku));let all=[],from=0;
   while(true){const{data,error}=await sb.from('stock_locations').select('sku,location_code,quantity').range(from,from+999);if(error){tb.innerHTML='';showToast('ดึงข้อมูลล้มเหลว','error');return;}if(!data||!data.length)break;all=all.concat(data);if(data.length<1000)break;from+=1000;}
@@ -667,8 +859,10 @@ async function validateSyncWithDb(items){
         ?`<span class="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold">🔺 เพิ่ม ${diff}</span>`
         :`<span class="bg-red-50 text-red-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🔻 ลด ${Math.abs(diff)}</span>`;
     hasReady=true;
-    parsedSyncData.push({sku:it.sku,newQty:newTotal,oldQty:oldTotal,diff,locs});
-    tb.innerHTML+=`<tr class="hover:bg-slate-50"><td class="p-2.5 font-mono font-bold text-xs">${escapeHtml(it.sku)}</td><td class="p-2.5 text-right font-bold text-blue-600">${newTotal}</td><td class="p-2.5 text-right text-slate-500">${oldTotal}</td><td class="p-2.5 text-right ${dc}">${dl}</td><td class="p-2.5">${badge}</td></tr>`;
+    parsedSyncData.push({sku:it.sku,newQty:newTotal,oldQty:oldTotal,diff,locs,name:it.name||'',warehouse:it.warehouse||'',subwarehouse:it.subwarehouse||'',lotnumber:it.lotnumber||''});
+    const locLabel=it.subwarehouse||it.warehouse||'-';
+    const nameLabel=it.name?`<p class="text-[10px] text-slate-400">${escapeHtml(it.name.slice(0,30))}</p>`:'';
+    tb.innerHTML+=`<tr class="hover:bg-slate-50"><td class="p-2.5"><p class="font-mono font-bold text-xs text-slate-800">${escapeHtml(it.sku)}</p>${nameLabel}</td><td class="p-2.5 text-xs text-slate-500">${escapeHtml(locLabel)}</td><td class="p-2.5 text-right font-bold text-blue-600">${newTotal}</td><td class="p-2.5 text-right text-slate-500">${oldTotal}</td><td class="p-2.5 text-right ${dc}">${dl}</td><td class="p-2.5">${badge}</td></tr>`;
   });
   document.getElementById('syncSummaryCount').textContent=`ตรวจสอบแล้ว ${items.length} รายการ`;
   document.getElementById('confirmSyncBtn').disabled=!hasReady;
@@ -690,13 +884,33 @@ async function processSyncDeduction(){
   }
   showToast(`อัปเดตสต็อคเสร็จ — ${success} รายการ`,'success',4000);
   document.getElementById('syncFileInput').value='';
-  document.getElementById('syncTableBody').innerHTML='<tr><td colspan="5" class="p-8 text-center text-slate-400">อัปเดตสต็อคเสร็จสิ้น</td></tr>';
+  document.getElementById('syncTableBody').innerHTML='<tr><td colspan="6" class="p-8 text-center text-slate-400">อัปเดตสต็อคเสร็จสิ้น</td></tr>';
   setButtonLoading(btn,false,'✨ ยืนยันอัปเดตสต็อค');btn.disabled=true;parsedSyncData=[];
 }
 
 // MASTER IMPORT
 let parsedMasterData=[];
-function parseMasterData(data,isCsv){try{const rows=parseSpreadsheet(data,isCsv,['PRODUCT CODE','SKU','BARCODE','รหัส'],['PRODUCT NAME','ชื่อสินค้า']);if(!rows)return;const seen=new Set();parsedMasterData=rows.filter(r=>r.sku).reduce((acc,r)=>{if(!seen.has(r.sku)){seen.add(r.sku);acc.push({sku:r.sku,name:r.name||`สินค้า ${r.sku}`});}return acc;},[]);if(!parsedMasterData.length){showToast('ไม่พบรหัสสินค้า','warn');return;}const tb=document.getElementById('masterTableBody');tb.innerHTML=parsedMasterData.slice(0,50).map(it=>`<tr class="hover:bg-slate-50"><td class="p-2 font-mono font-bold text-xs">${escapeHtml(it.sku)}</td><td class="p-2 text-xs text-slate-600">${escapeHtml(it.name)}</td></tr>`).join('');if(parsedMasterData.length>50)tb.innerHTML+=`<tr><td colspan="2" class="p-3 text-center text-xs text-slate-400">...และอีก ${parsedMasterData.length-50} รายการ</td></tr>`;document.getElementById('masterSummaryCount').textContent=`เตรียมนำเข้า ${parsedMasterData.length} รายการ`;document.getElementById('confirmMasterBtn').disabled=false;}catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}}
+function parseMasterData(data,isCsv){
+  try{
+    // ใช้ StockReport parser เดียวกัน
+    const rows=parseStockReportFile(data,isCsv);
+    if(!rows||!rows.length){showToast('ไม่พบรหัสสินค้า','warn');return;}
+    const seen=new Set();
+    parsedMasterData=rows.reduce((acc,r)=>{
+      if(!seen.has(r.sku)){
+        seen.add(r.sku);
+        acc.push({sku:r.sku,name:r.name||`สินค้า ${r.sku}`});
+      }
+      return acc;
+    },[]);
+    if(!parsedMasterData.length){showToast('ไม่พบรหัสสินค้า','warn');return;}
+    const tb=document.getElementById('masterTableBody');
+    tb.innerHTML=parsedMasterData.slice(0,50).map(it=>`<tr class="hover:bg-slate-50"><td class="p-2 font-mono font-bold text-xs">${escapeHtml(it.sku)}</td><td class="p-2 text-xs text-slate-600">${escapeHtml(it.name)}</td></tr>`).join('');
+    if(parsedMasterData.length>50)tb.innerHTML+=`<tr><td colspan="2" class="p-3 text-center text-xs text-slate-400">...และอีก ${parsedMasterData.length-50} รายการ</td></tr>`;
+    document.getElementById('masterSummaryCount').textContent=`เตรียมนำเข้า ${parsedMasterData.length} รายการ`;
+    document.getElementById('confirmMasterBtn').disabled=false;
+  }catch(err){showToast('อ่านไฟล์ล้มเหลว: '+err.message,'error');}
+}
 async function processMasterImport(){const ok=await showConfirm(`นำเข้า ${parsedMasterData.length} รายการ?`,'ระบบจะ upsert ข้อมูลทั้งหมด','bg-blue-600 hover:bg-blue-700');if(!ok)return;const btn=document.getElementById('confirmMasterBtn');const cs=200;let done=0;setButtonLoading(btn,true,'⏳...');try{for(let i=0;i<parsedMasterData.length;i+=cs){const{error}=await sb.from('products').upsert(parsedMasterData.slice(i,i+cs),{onConflict:'sku'});if(error)throw error;done+=Math.min(cs,parsedMasterData.length-i);btn.textContent=`⏳ ${done}/${parsedMasterData.length}`;}showToast(`นำเข้าสำเร็จ ${parsedMasterData.length} รายการ`,'success',5000);document.getElementById('masterFileInput').value='';document.getElementById('masterTableBody').innerHTML='<tr><td colspan="2" class="p-8 text-center text-slate-400">อัปโหลดเรียบร้อย</td></tr>';parsedMasterData=[];}catch(err){showToast('ล้มเหลว: '+err.message,'error');}finally{setButtonLoading(btn,false,'📥 บันทึกลงฐานข้อมูล');btn.disabled=parsedMasterData.length===0;}}
 
 // SKU MANAGER
@@ -952,6 +1166,309 @@ async function loadStockTrend() {
     document.getElementById('trendEmpty').classList.remove('hidden');
   }
 }
+
+// ============================================================
+// CYCLE COUNT LOGIC
+// ============================================================
+let currentCountStatus = 'open';
+let currentCountSession = null; // { session_no, location_code }
+let countItems = []; // รายการที่นับในรอบนี้
+
+function genSessionNo() {
+  const n = new Date();
+  return `CC${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}-${String(n.getTime()).slice(-4)}`;
+}
+
+// --- Session List ---
+async function loadCycleSessions() {
+  const list = document.getElementById('countSessionList');
+  list.innerHTML = '<p class="text-xs text-slate-400 text-center py-8 bg-white rounded-2xl border animate-pulse">⏳ กำลังโหลด...</p>';
+  try {
+    const { data, error } = await sb.from('cycle_count_sessions')
+      .select('*, cycle_count_items(id)')
+      .eq('status', currentCountStatus)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (error) throw error;
+    renderCountSessionList(data || []);
+  } catch(err) {
+    list.innerHTML = `<p class="text-xs text-red-500 text-center py-8 bg-white rounded-2xl border">❌ ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function filterCountSessions(status) {
+  currentCountStatus = status;
+  ['open','pending_approval','approved'].forEach(s => {
+    const btn = document.getElementById(`ctab-${s}`);
+    if (btn) btn.className = s === status
+      ? 'flex-1 py-2 rounded-lg bg-white text-emerald-700 shadow-sm font-bold'
+      : 'flex-1 py-2 rounded-lg text-slate-500 font-semibold';
+  });
+  loadCycleSessions();
+}
+
+function renderCountSessionList(sessions) {
+  const list = document.getElementById('countSessionList');
+  if (!sessions.length) {
+    list.innerHTML = '<p class="text-xs text-slate-400 text-center py-8 bg-white rounded-2xl border border-dashed">ไม่มี Session</p>';
+    return;
+  }
+  const stBadge = {
+    open: 'bg-emerald-100 text-emerald-700',
+    pending_approval: 'bg-amber-100 text-amber-700',
+    approved: 'bg-blue-100 text-blue-700',
+    cancelled: 'bg-slate-100 text-slate-500'
+  };
+  const stLabel = { open:'🟢 กำลังนับ', pending_approval:'⏳ รออนุมัติ', approved:'✅ อนุมัติแล้ว', cancelled:'❌ ยกเลิก' };
+
+  list.innerHTML = sessions.map(s => {
+    const dt = new Date(s.created_at).toLocaleString('th-TH', { dateStyle:'short', timeStyle:'short' });
+    const itemCount = s.cycle_count_items?.length || 0;
+    let actionBtn = '';
+    if (s.status === 'open') {
+      actionBtn = `<button onclick="openCountingModal('${s.session_no}','${escapeHtml(s.location_code)}')" class="text-sm bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700">🔢 นับต่อ</button>`;
+    } else if (s.status === 'pending_approval' && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
+      actionBtn = `<button onclick="openApproveModal('${s.session_no}')" class="text-sm bg-amber-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-600">✅ อนุมัติ</button>`;
+    }
+    return `<div class="bg-white border rounded-2xl p-4 space-y-2 shadow-sm">
+      <div class="flex justify-between items-start">
+        <div>
+          <p class="font-bold text-slate-800 font-mono text-sm">${escapeHtml(s.session_no)}</p>
+          <p class="text-xs text-slate-500">📍 ${escapeHtml(s.location_code)} • ${dt} • ${itemCount} รายการ</p>
+          ${s.note ? `<p class="text-xs text-slate-400 italic">"${escapeHtml(s.note)}"</p>` : ''}
+          <p class="text-[10px] text-slate-400">โดย: ${escapeHtml(s.created_by || '-')}</p>
+        </div>
+        <span class="text-[10px] px-2 py-1 rounded-full font-bold ${stBadge[s.status] || ''}">${stLabel[s.status] || s.status}</span>
+      </div>
+      <div class="flex justify-end">${actionBtn}</div>
+    </div>`;
+  }).join('');
+}
+
+// --- New Session ---
+function openNewCountSession() {
+  document.getElementById('countLocInput').value = '';
+  document.getElementById('countNoteInput').value = '';
+  document.getElementById('countSessionModal').classList.replace('hidden','flex');
+  setTimeout(() => document.getElementById('countLocInput').focus(), 50);
+}
+function closeCountModal() { document.getElementById('countSessionModal').classList.replace('flex','hidden'); }
+
+async function saveCountSession() {
+  const loc  = document.getElementById('countLocInput').value.trim().toUpperCase();
+  const note = document.getElementById('countNoteInput').value.trim();
+  if (!loc) { showToast('ระบุโลเคชั่นที่จะนับครับ', 'warn'); return; }
+  const btn = document.getElementById('countSessionSaveBtn');
+  setButtonLoading(btn, true, '⏳...');
+  try {
+    const sessionNo = genSessionNo();
+    const { error } = await sb.from('cycle_count_sessions').insert([{
+      session_no: sessionNo,
+      location_code: loc,
+      status: 'open',
+      created_by: currentUser.display_name,
+      note
+    }]);
+    if (error) throw error;
+    showToast(`เปิด Session ${sessionNo} แล้ว`, 'success');
+    closeCountModal();
+    filterCountSessions('open');
+    // เปิด counting modal เลย
+    setTimeout(() => openCountingModal(sessionNo, loc), 400);
+  } catch(err) { showToast('ล้มเหลว: ' + err.message, 'error'); }
+  finally { setButtonLoading(btn, false, 'เปิด Session'); }
+}
+
+// --- Counting Modal ---
+async function openCountingModal(sessionNo, locationCode) {
+  currentCountSession = { session_no: sessionNo, location_code: locationCode };
+  document.getElementById('countingSessionNo').textContent = sessionNo;
+  document.getElementById('countingLocBadge').textContent = '📍 ' + locationCode;
+  document.getElementById('countSkuInput').value = '';
+  document.getElementById('countStaging').classList.add('hidden');
+
+  // โหลดรายการที่นับไปแล้ว
+  await reloadCountItems();
+  document.getElementById('countingModal').classList.replace('hidden','flex');
+  setTimeout(() => document.getElementById('countSkuInput').focus(), 50);
+}
+function closeCountingModal() {
+  document.getElementById('countingModal').classList.replace('flex','hidden');
+  loadCycleSessions();
+}
+
+async function reloadCountItems() {
+  const { data } = await sb.from('cycle_count_items')
+    .select('*').eq('session_no', currentCountSession.session_no).order('created_at', { ascending: false });
+  countItems = data || [];
+  renderCountItems();
+}
+
+function renderCountItems() {
+  const el = document.getElementById('countItemsList');
+  const counter = document.getElementById('countItemCount');
+  counter.textContent = `${countItems.length} รายการ`;
+  if (!countItems.length) {
+    el.innerHTML = '<p class="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl border border-dashed">ยังไม่มีรายการ</p>';
+    return;
+  }
+  el.innerHTML = countItems.map(it => {
+    const diff = it.diff ?? (it.counted_qty - it.system_qty);
+    const dc = diff === 0 ? 'text-slate-400' : diff > 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+    const dl = diff > 0 ? `+${diff}` : String(diff);
+    return `<div class="flex justify-between items-center bg-slate-50 px-3 py-2.5 rounded-xl border text-xs">
+      <div>
+        <p class="font-bold text-slate-800 font-mono">${escapeHtml(it.sku)}</p>
+        <p class="text-[10px] text-slate-400">ระบบ: ${it.system_qty} → นับได้: <span class="font-bold text-slate-700">${it.counted_qty}</span></p>
+      </div>
+      <div class="text-right">
+        <span class="${dc}">${dl}</span>
+        <button onclick="removeCountItem('${it.id}')" class="ml-2 text-red-300 hover:text-red-500 font-bold">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// สแกนแล้วขึ้น staging ก่อน
+function addCountItem() {
+  const sku = document.getElementById('countSkuInput').value.trim().toUpperCase();
+  if (!sku) return;
+  document.getElementById('countSkuInput').value = '';
+  document.getElementById('countStagingSku').textContent = sku;
+  document.getElementById('countStagingQty').value = '1';
+  document.getElementById('countStaging').classList.remove('hidden');
+  setTimeout(() => { document.getElementById('countStagingQty').focus(); document.getElementById('countStagingQty').select(); }, 50);
+}
+function cancelCountStaging() { document.getElementById('countStaging').classList.add('hidden'); document.getElementById('countSkuInput').focus(); }
+
+async function confirmCountItem() {
+  const sku = document.getElementById('countStagingSku').textContent;
+  const countedQty = parseInt(document.getElementById('countStagingQty').value || '0');
+  if (isNaN(countedQty) || countedQty < 0) { showToast('จำนวนไม่ถูกต้อง', 'warn'); return; }
+
+  try {
+    // ดึงสต็อคในระบบ ณ ขณะนี้
+    const { data: sl } = await sb.from('stock_locations').select('quantity')
+      .eq('sku', sku).eq('location_code', currentCountSession.location_code).maybeSingle();
+    const systemQty = sl?.quantity ?? 0;
+
+    // ตรวจว่ามี item นี้ใน session แล้วหรือเปล่า
+    const { data: exist } = await sb.from('cycle_count_items').select('id')
+      .eq('session_no', currentCountSession.session_no).eq('sku', sku).maybeSingle();
+
+    if (exist) {
+      // อัปเดต
+      await sb.from('cycle_count_items').update({ counted_qty: countedQty, system_qty: systemQty }).eq('id', exist.id);
+    } else {
+      // สร้างใหม่
+      const { error } = await sb.from('cycle_count_items').insert([{
+        session_no: currentCountSession.session_no,
+        sku, system_qty: systemQty, counted_qty: countedQty
+      }]);
+      if (error) throw error;
+    }
+
+    document.getElementById('countStaging').classList.add('hidden');
+    document.getElementById('countSkuInput').focus();
+    showToast(`บันทึก ${sku} ×${countedQty} (ระบบมี ${systemQty})`, 'success', 2000);
+    await reloadCountItems();
+  } catch(err) { showToast('ล้มเหลว: ' + err.message, 'error'); }
+}
+
+async function removeCountItem(id) {
+  await sb.from('cycle_count_items').delete().eq('id', id);
+  await reloadCountItems();
+}
+
+async function submitCountForApproval() {
+  if (!countItems.length) { showToast('ยังไม่มีรายการที่นับครับ', 'warn'); return; }
+  const ok = await showConfirm('ส่งให้หัวหน้าอนุมัติ?', 'รายการจะถูกล็อก ไม่สามารถแก้ไขได้จนกว่าจะได้รับการอนุมัติ');
+  if (!ok) return;
+  await sb.from('cycle_count_sessions').update({ status: 'pending_approval' }).eq('session_no', currentCountSession.session_no);
+  showToast('ส่งอนุมัติแล้ว', 'success');
+  closeCountingModal();
+  filterCountSessions('pending_approval');
+}
+
+// --- Approve Modal ---
+async function openApproveModal(sessionNo) {
+  document.getElementById('approveSessionNo').textContent = sessionNo;
+  document.getElementById('approveCountBody').innerHTML = '<tr><td colspan="4" class="p-4 text-center text-xs animate-pulse">⏳...</td></tr>';
+  document.getElementById('approveCountModal').classList.replace('hidden','flex');
+
+  const { data } = await sb.from('cycle_count_items').select('*').eq('session_no', sessionNo).order('sku');
+  const items = data || [];
+
+  const increased = items.filter(i => i.diff > 0).length;
+  const decreased = items.filter(i => i.diff < 0).length;
+  const same      = items.filter(i => i.diff === 0).length;
+  document.getElementById('approveSummary').innerHTML =
+    `รวม ${items.length} รายการ — <span class="text-emerald-600 font-bold">เพิ่ม ${increased}</span> | <span class="text-red-500 font-bold">ลด ${decreased}</span> | <span class="text-slate-400">ไม่เปลี่ยน ${same}</span>`;
+
+  document.getElementById('approveCountBody').innerHTML = items.map(it => {
+    const diff = it.diff ?? (it.counted_qty - it.system_qty);
+    const dc = diff === 0 ? 'text-slate-400' : diff > 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+    return `<tr class="hover:bg-slate-50">
+      <td class="p-2 font-mono font-bold text-slate-800">${escapeHtml(it.sku)}</td>
+      <td class="p-2 text-right text-slate-500">${it.system_qty}</td>
+      <td class="p-2 text-right font-bold text-slate-800">${it.counted_qty}</td>
+      <td class="p-2 text-right ${dc}">${diff > 0 ? '+' : ''}${diff}</td>
+    </tr>`;
+  }).join('');
+
+  // เก็บ sessionNo ไว้ใช้ตอน approve
+  document.getElementById('approveCountBtn').setAttribute('data-session', sessionNo);
+}
+function closeApproveModal() { document.getElementById('approveCountModal').classList.replace('flex','hidden'); }
+
+async function approveCount() {
+  const sessionNo = document.getElementById('approveCountBtn').getAttribute('data-session');
+  const ok = await showConfirm('ยืนยันอนุมัติ?', 'ระบบจะอัปเดตสต็อคตามจำนวนที่นับได้ทันที ไม่สามารถย้อนกลับได้', 'bg-emerald-600 hover:bg-emerald-700');
+  if (!ok) return;
+
+  const btn = document.getElementById('approveCountBtn');
+  setButtonLoading(btn, true, '⏳...');
+
+  try {
+    const { data: items } = await sb.from('cycle_count_items').select('*').eq('session_no', sessionNo);
+    const { data: session } = await sb.from('cycle_count_sessions').select('location_code').eq('session_no', sessionNo).maybeSingle();
+    const loc = session?.location_code;
+
+    for (const it of (items || [])) {
+      const diff = it.diff ?? (it.counted_qty - it.system_qty);
+      if (diff === 0) continue; // ไม่เปลี่ยนข้าม
+      // อัปเดตสต็อค
+      const { error } = await sb.from('stock_locations')
+        .upsert([{ sku: it.sku, location_code: loc, quantity: it.counted_qty }], { onConflict: 'sku, location_code' });
+      if (!error) {
+        await writeStockLog('cycle_count', it.sku, loc, diff, it.system_qty, it.counted_qty, sessionNo);
+      }
+    }
+
+    // อัปเดตสถานะ session
+    await sb.from('cycle_count_sessions').update({
+      status: 'approved',
+      approved_by: currentUser.display_name,
+      approved_at: new Date().toISOString()
+    }).eq('session_no', sessionNo);
+
+    showToast('อนุมัติและปรับยอดสต็อคเรียบร้อยแล้ว', 'success', 4000);
+    closeApproveModal();
+    filterCountSessions('approved');
+  } catch(err) { showToast('ล้มเหลว: ' + err.message, 'error'); }
+  finally { setButtonLoading(btn, false, '✅ อนุมัติ & ปรับยอด'); }
+}
+
+// Wire Enter key for count inputs
+document.addEventListener('DOMContentLoaded', () => {
+  const ci = document.getElementById('countSkuInput');
+  if (ci) ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCountItem(); } });
+  const cq = document.getElementById('countStagingQty');
+  if (cq) cq.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmCountItem(); } });
+  const cl = document.getElementById('countLocInput');
+  if (cl) cl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveCountSession(); } });
+});
+
 </script>
 </body>
 </html>
