@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบศูนย์กลาง & ประกาศของร้าน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', sans-serif; background: #121212; color: #fff; }
+        .glass { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(10px); border: 1px solid #333; }
+        .btn-orange { background: #ea580c; transition: 0.3s; }
+        .btn-orange:hover { background: #c2410c; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center border-b border-orange-600 pb-4 mb-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-orange-500">ระบบศูนย์กลาง</h1>
+        <button id="toggleFormBtn" class="btn-orange px-5 py-2 rounded-lg font-bold">+ เพิ่มประกาศ</button>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
+        <nav id="dynamicMenuContainer" class="md:col-span-1 space-y-2"></nav>
+        <div id="announcementList" class="md:col-span-3 space-y-4"></div>
+    </div>
+
+    <script>
+        // ✅ URL เชื่อมต่อ Google Sheets ของคุณ
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxEjkWj9pJUyVtrDN73JUvetOwiUUXTPij0Jc2yi22CGL533PnJctPT5lo69zXxD7DJQ/exec";
+        
+        let currentRole = localStorage.getItem('role') || 'viewer';
+
+        async function init() {
+            try {
+                const [anns, menus] = await Promise.all([
+                    fetch(SCRIPT_URL).then(r => r.json()),
+                    fetch(SCRIPT_URL + "?action=getMenus").then(r => r.json())
+                ]);
+
+                // Render เมนู
+                const nav = document.getElementById('dynamicMenuContainer');
+                nav.innerHTML = '';
+                menus.forEach(m => {
+                    const isActive = m.name === 'หน้าหลักประกาศ';
+                    nav.innerHTML += `<a href="${m.url}" class="block p-3 rounded-lg ${isActive ? 'bg-orange-600' : 'bg-gray-800'} font-bold">${m.icon} ${m.name}</a>`;
+                });
+
+                // Render ประกาศ
+                const list = document.getElementById('announcementList');
+                list.innerHTML = '';
+                anns.forEach(a => {
+                    list.innerHTML += `
+                        <div class="glass p-4 rounded-xl border-l-4 border-orange-500">
+                            <h2 class="text-lg font-bold">${a.Title}</h2>
+                            <p class="text-gray-400 text-sm">${a.Content}</p>
+                            ${a.Link ? `<a href="${a.Link}" class="text-orange-400 underline text-sm">${a.LinkName}</a>` : ''}
+                        </div>
+                    `;
+                });
+            } catch(e) { console.error("Error loading data:", e); }
+        }
+        init();
+    </script>
+</body>
+</html>
